@@ -49,7 +49,9 @@ pcd <- function(
     prox_fun = c("identity", "soft", "mcp"),
     intercept_update = c(
       "cyclic",
-      "after_each",
+      "after_each_gradient",
+      "after_each_newton",
+      "after_each_exact",
       "after_sweep_gradient",
       "after_sweep_newton",
       "after_sweep_exact"
@@ -110,7 +112,7 @@ pcd <- function(
   if (family == "binomial") {
     if (missing(method)) stop("method is required")
     # call internal helper
-    beta_std <- cd_engine_logistic(X, y,
+    engine_out <- cd_engine_logistic(X, y,
       lambda = lambda,
       prox_fun = prox_fun,
       tol = tol,
@@ -119,26 +121,11 @@ pcd <- function(
       method = method,
       verbose = verbose
     )
-    # save return variables
-    intercept <- beta_std[1]
-    slopes <- beta_std[-1]
 
-    # transform back to original scale
-    if (standardize && length(slopes)) {
-      intercept <- intercept - sum(slopes * means / sds)
-      slopes <- slopes / sds
-    }
-
-    # return data frame
-    data.frame(
-      term = colnames(X),
-      estimate = c(intercept, slopes),
-      row.names = NULL
-    )
     # linear regression
   } else if (family == "gaussian") {
     # call internal helper
-    beta_std <- cd_engine(X, y,
+    engine_out <- cd_engine(X, y,
       lambda = lambda,
       prox_fun = prox_fun,
       tol = tol,
@@ -147,25 +134,37 @@ pcd <- function(
       alpha = 1,
       verbose = verbose
     )
-    # save return variables
-    intercept <- beta_std[1]
-    slopes <- beta_std[-1]
-
-    # transform back to original scale
-    if (standardize && length(slopes)) {
-      intercept <- intercept - sum(slopes * means / sds)
-      slopes <- slopes / sds
-    }
-
-    # return data frame
-    data.frame(
-      term = colnames(X),
-      estimate = c(intercept, slopes),
-      row.names = NULL
-    )
   } else {
     stop("Unsupported family for logistic regression.")
   }
+
+  # extract beta and path
+  beta_std <- engine_out$beta
+  beta_path <- engine_out$beta_path
+
+  colnames(beta_path) <- colnames(X)
+
+  # save return variables
+  intercept <- beta_std[1]
+  slopes <- beta_std[-1]
+
+  # transform back to original scale
+  if (standardize && length(slopes)) {
+    intercept <- intercept - sum(slopes * means / sds)
+    slopes <- slopes / sds
+  }
+
+  # return data frame
+  out_df <- data.frame(
+    term = colnames(X),
+    estimate = c(intercept, slopes),
+    row.names = NULL
+  )
+
+  structure(
+    list(df = out_df, path = beta_path, terms = colnames(X)),
+    class = "pcd_out"
+  )
 }
 
 
@@ -215,6 +214,8 @@ cd_engine <- function(
   r <- y # residual = y − Xβ
   iter <- 0L
 
+  # initialize beta path for convergence plotting
+  beta_path <- list()
 
   repeat {
     iter <- iter + 1L
@@ -327,10 +328,17 @@ cd_engine <- function(
         "  max|Δβ|=", formatC(delta_max, digits = 3, format = "e")
       )
     }
+
+    # record full beta vector for convergence plotting
+    beta_path[[iter]] <- beta
+
     if (delta_max < tol || iter >= max_iter) break
   }
 
-  beta
+  # convert beta path to matrix
+  beta_path <- do.call(rbind, beta_path)
+
+  return(list(beta_path = beta_path, beta = beta))
 }
 
 #' Logistic regression via coordinate descent, logistic loss
@@ -343,7 +351,9 @@ cd_engine_logistic <- function(X, y,
                                standardize = TRUE,
                                intercept_update = c(
                                  "cyclic",
-                                 "after_each",
+                                 "after_each_gradient",
+                                 "after_each_newton",
+                                 "after_each_exact",
                                  "after_sweep_gradient",
                                  "after_sweep_newton",
                                  "after_sweep_exact"
@@ -370,6 +380,10 @@ cd_engine_logistic <- function(X, y,
   has_intercept <- all(X[, 1] == 1)
   beta <- numeric(p)
   iter <- 0L
+
+  # initialize beta path for convergence plotting
+  beta_path <- list()
+
 
   # first‐order proximal gradient method
   if (method == "gradient") {
@@ -461,6 +475,7 @@ cd_engine_logistic <- function(X, y,
             for (k in seq_len(newton_max)) {
               grad_0 <- sum(pi - y)
               if (abs(grad_0) < newton_tol) break
+              H_0 <- sum(pi * (1 - pi))
               step <- -grad_0 / H_0
               beta[1] <- beta[1] + step
               eta <- eta + step
@@ -482,6 +497,9 @@ cd_engine_logistic <- function(X, y,
       if (verbose && iter %% 1e3 == 0L) {
         message("iter=", iter, "  max|Δβ|=", formatC(delta_max, digits = 3, format = "e"))
       }
+
+      # record full beta vector for convergence plotting
+      beta_path[[iter]] <- beta
       if (delta_max < tol || iter >= max_iter) break
     }
   }
@@ -537,12 +555,12 @@ cd_engine_logistic <- function(X, y,
               newton_max <- 50
               acc <- 0
               for (k in seq_len(newton_max)) {
-                gk <- sum(pi - y)
+                grad_0 <- sum(pi - y)
                 if (abs(gk) < newton_tol) break
-                hk <- sum(pi * (1 - pi))
-                step0 <- -gk / hk
-                # update intercept, eta, and pi incrementally
-                beta[1] <- beta[1] + step0
+                H_0 <- sum(pi * (1 - pi))
+                step0 <- -grad_0 / H_0 <-
+                  # update intercept, eta, and pi incrementally
+                  beta[1] <- beta[1] + step0
                 eta <- eta + step0
                 pi <- 1 / (1 + exp(-eta))
                 acc <- acc + step0
@@ -597,10 +615,18 @@ cd_engine_logistic <- function(X, y,
       if (verbose && iter %% 10L == 0L) {
         message("iter=", iter, "  max|Δβ|=", formatC(delta_max, format = "e", digits = 2))
       }
+
+      # record full beta vector for convergence plotting
+      beta_path[[iter]] <- beta
+
       if (delta_max < tol || iter >= max_iter) break
     }
   }
-  beta
+
+  # convert beta path to matrix
+  beta_path <- do.call(rbind, beta_path)
+
+  return(list(beta_path = beta_path, beta = beta))
 }
 
 
