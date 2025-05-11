@@ -1,4 +1,5 @@
 library(pcd)
+library(dplyr)
 library(broom) # for tidy() on lm()
 
 set.seed(1)
@@ -26,7 +27,7 @@ fit_lm <- tidy(lm(mpg ~ ., data = mtcars))[, c("term", "estimate")]
 
 # compare
 comparison <- merge(
-  fit_pcd, fit_lm,
+  fit_pcd$df, fit_lm,
   by = "term",
   suffixes = c("_pcd", "_lm")
 )

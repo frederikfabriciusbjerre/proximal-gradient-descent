@@ -41,7 +41,7 @@ names(coef_glm) <- rownames(coef(fit_glm))
 # compare
 tibble(
   term             = names(coef_glm),
-  estimate_pcd     = fit_pcd$estimate,
+  estimate_pcd     = fit_pcd$df$estimate,
   estimate_glmnet  = coef_glm
 ) |>
   mutate(

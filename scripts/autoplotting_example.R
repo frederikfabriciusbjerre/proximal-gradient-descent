@@ -26,12 +26,14 @@ fit_pcd <- pcd(
   lambda = 0.1,
   prox_fun = "soft",
   standardize = TRUE,
-  intercept_update = "after_sweep_exact",
+  intercept_update = "after_sweep_newton",
   family = "binomial",
   method = "gradient",
   tol = tol,
   max_iter = Inf
 )
+
+p <- autoplot(fit_pcd, tol = tol)
 
 # using newton
 fit_pcd_newton <- pcd(
@@ -40,34 +42,25 @@ fit_pcd_newton <- pcd(
   lambda = 0.1,
   prox_fun = "soft",
   standardize = TRUE,
-  intercept_update = "after_sweep_exact",
+  intercept_update = "after_sweep_newton",
   family = "binomial",
   method = "newton",
   tol = tol,
   max_iter = Inf
 )
 
-# fit with glmnet
-X_glm <- model.matrix(y ~ ., dat)[, -1]
-fit_glm <- glmnet(
-  x = X_glm,
-  y = dat$y,
-  family = "binomial",
-  lambda = 0.1,
-  alpha = 1,
-  standardize = TRUE,
-  intercept = TRUE,
-  thresh = tol
-)
-coef_glm <- as.vector(coef(fit_glm))
-names(coef_glm) <- rownames(coef(fit_glm))
+q <- autoplot(fit_pcd_newton, tol = tol)
+
+# plot side by side
+library(gridExtra)
+library(ggplot2)
+grid.arrange(p, q, ncol = 2)
 
 # compare
 tibble(
-  term = names(coef_glm),
+  term = fit_pcd$terms,
   estimate_pcd = fit_pcd$df$estimate,
-  estimate_pcd_newton = fit_pcd_newton$df$estimate,
-  estimate_glmnet = coef_glm
+  estimate_pcd_newton = fit_pcd_newton$df$estimate
 ) |>
   # mutate(abs_diff_pcd_grad_glm = abs(estimate_pcd - estimate_glmnet)) |>
   # mutate(abs_diff_pcd_newton_glm = abs(estimate_pcd_newton - estimate_glmnet)) |>
