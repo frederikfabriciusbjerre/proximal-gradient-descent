@@ -10,6 +10,7 @@ library(freqdom) # for rar()
 #' @param beta Optional true coefficient vector
 #' @param seed Random seed
 #' @return List with X, y, beta
+#' @export
 simulate_independent <- function(n, p, k,
                                  error_dist = c("normal", "t", "uniform"),
                                  beta = NULL,
@@ -45,6 +46,10 @@ simulate_independent <- function(n, p, k,
 }
 
 #' Simulate correlated design
+#'
+#' @inheritParams simulate_independent
+#' @param rho Correlation coefficient used to simulate from uniform 0 to rho
+#' @export
 simulate_correlated <- function(n, p, k,
                                 rho = 0,
                                 error_dist = c("normal", "t", "uniform"),
@@ -87,6 +92,11 @@ simulate_correlated <- function(n, p, k,
 }
 
 #' Simulate block-diagonal design
+#'
+#' @inheritParams simulate_independent
+#' @params rho Correlation coefficient for block matrix (non-diagonals)
+#' @param block_sizes Sizes of blocks in the block-diagonal matrix
+#' @export
 simulate_block_diagonal <- function(n, p, k,
                                     rho = 0,
                                     block_sizes = NULL,
@@ -94,7 +104,7 @@ simulate_block_diagonal <- function(n, p, k,
                                     beta = NULL,
                                     seed = 96) {
   set.seed(seed)
-  if (is.null(block_sizes)) block_sizes <- p / k
+  if (is.null(block_sizes)) stop("block_sizes must be provided")
   if (rho < 0 || rho > 1) stop("rho must be in [0,1]")
 
   # block correlation matrix
@@ -135,12 +145,20 @@ simulate_block_diagonal <- function(n, p, k,
 
 #' Simulate VAR(1) / multivariate AR(1) design
 #'
+#' @inheritParams simulate_independent
+#' @param rho Correlation coefficient for AR(1) process
+#' @param burnin Number of initial observations to discard
+#' @param noise Type of noise to use for AR process: "mnormal" or "mt"
+#' @param sigma Covariance matrix for the noise
+#' @param df Degrees of freedom for t-distribution for noise
+#' @param Psi AR coefficient matrix
+#' @export
 simulate_ar1 <- function(n, p, k,
                          rho = 0,
                          burnin = 50,
                          noise = c("mnormal", "mt"),
                          sigma = NULL,
-                         df = 4,
+                         df = 5,
                          Psi = NULL,
                          error_dist = c("normal", "t", "uniform"),
                          beta = NULL,
