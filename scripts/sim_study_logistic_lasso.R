@@ -1,5 +1,3 @@
-# intercept_update_simulation.R
-# Project in Statistics - PCD
 library(pcd)
 library(glmnet)
 library(tidyverse)
