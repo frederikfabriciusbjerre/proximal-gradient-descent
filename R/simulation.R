@@ -94,7 +94,7 @@ simulate_correlated <- function(n, p, k,
 #' Simulate block-diagonal design
 #'
 #' @inheritParams simulate_independent
-#' @params rho Correlation coefficient for block matrix (non-diagonals)
+#' @param rho Correlation coefficient for block matrix (non-diagonals)
 #' @param block_sizes Sizes of blocks in the block-diagonal matrix
 #' @export
 simulate_block_diagonal <- function(n, p, k,

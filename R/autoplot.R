@@ -3,10 +3,18 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 
+#' Plot convergence plots for pcd objects
+#'
+#' @param x A `pcd` object.
+#' @param tol Tolerance for convergence. Default is `NULL`,
+#' which will use a default value of `1e-12`.
+#'
+#' @return A ggplot object.
+#' @export
 autoplot.pcd_out <- function(x, tol = NULL) {
   if (is.null(tol)) {
-    warning("`tol` is NULL, using default value of 1e-15")
-    tol <- 1e-15
+    warning("`tol` is NULL, using default value of 1e-12")
+    tol <- 1e-12
   }
 
   # pivot to long
