@@ -92,8 +92,8 @@ simulate_once <- function(seed) {
 sim_res <- map_df(seq_len(nsim), simulate_once)
 
 # summarize
-summary_res <- sim_res %>%
-  group_by(strategy) %>%
+summary_res <- sim_res |>
+  group_by(strategy) |>
   summarize(
     mean_abs_err_beta0 = mean(abs_err_beta0),
     mean_abs_err_slopes = mean(abs_err_slopes),
@@ -101,7 +101,7 @@ summary_res <- sim_res %>%
     mean_MSE_full = mean(sq_err_full),
     mean_time_sec = mean(time_sec),
     .groups = "drop"
-  ) %>%
+  ) |>
   arrange(mean_MAE_full)
 
 print(summary_res)
