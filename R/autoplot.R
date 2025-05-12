@@ -11,7 +11,7 @@ library(ggplot2)
 #'
 #' @return A ggplot object.
 #' @export
-autoplot.pcd_out <- function(x, tol = NULL) {
+autoplot.pcd_out <- function(x, tol = NULL, legend = TRUE) {
   if (is.null(tol)) {
     warning("`tol` is NULL, using default value of 1e-12")
     tol <- 1e-12
@@ -40,19 +40,44 @@ autoplot.pcd_out <- function(x, tol = NULL) {
     ungroup()
 
   # plot lines + circles at convergence
-  ggplot(df, aes(x = iter, y = estimate, colour = term)) +
-    geom_line() +
+  # now build the plot in four layers:
+  p <- ggplot() +
+    # all non-intercept lines, coloured by term
+    geom_line(
+      data = df |> filter(term != "(Intercept)"),
+      aes(x = iter, y = estimate, colour = term)
+    ) +
+    # intercept line, black & dashed
+    geom_line(
+      data = df |> filter(term == "(Intercept)"),
+      aes(x = iter, y = estimate),
+      colour = "black",
+      linetype = "dashed",
+      size = 1
+    ) +
+    # non-intercept convergence points
     geom_point(
-      data = conv_pts,
+      data = conv_pts |> filter(term != "(Intercept)"),
       aes(x = iter, y = estimate, colour = term),
-      shape = 21, # hollow circle
-      size = 3,
-      stroke = 1.2
+      shape = 21, size = 3, stroke = 1.2
+    ) +
+    # intercept convergence point, black outline
+    geom_point(
+      data = conv_pts |> filter(term == "(Intercept)"),
+      aes(x = iter, y = estimate),
+      shape = 21, size = 3, stroke = 1.2,
+      colour = "black",
+      fill = "white"
     ) +
     labs(
-      x = "Iteration",
-      y = expression(hat(beta)),
+      x      = "Iteration",
+      y      = expression(hat(beta)),
       colour = "Coefficient"
     ) +
     theme_minimal()
+
+  if (!legend) {
+    p <- p + theme(legend.position = "none")
+  }
+  p
 }

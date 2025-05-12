@@ -12,6 +12,7 @@ simulate_block_diagonal(
   block_sizes = NULL,
   error_dist = c("normal", "t", "uniform"),
   beta = NULL,
+  family = c("gaussian", "binomial"),
   seed = 96
 )
 }

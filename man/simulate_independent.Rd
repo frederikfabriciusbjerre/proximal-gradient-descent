@@ -10,6 +10,7 @@ simulate_independent(
   k,
   error_dist = c("normal", "t", "uniform"),
   beta = NULL,
+  family = c("gaussian", "binomial"),
   seed = 96
 )
 }

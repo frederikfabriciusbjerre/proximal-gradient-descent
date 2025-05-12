@@ -11,6 +11,7 @@ simulate_correlated(
   rho = 0,
   error_dist = c("normal", "t", "uniform"),
   beta = NULL,
+  family = c("gaussian", "binomial"),
   seed = 96
 )
 }

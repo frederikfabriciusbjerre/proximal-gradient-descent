@@ -4,7 +4,7 @@
 \alias{autoplot.pcd_out}
 \title{Plot convergence plots for pcd objects}
 \usage{
-\method{autoplot}{pcd_out}(x, tol = NULL)
+\method{autoplot}{pcd_out}(x, tol = NULL, legend = TRUE)
 }
 \arguments{
 \item{x}{A \code{pcd} object.}

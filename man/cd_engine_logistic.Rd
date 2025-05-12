@@ -31,7 +31,7 @@ cd_engine_logistic(
 \item{intercept_update}{the strategy for updating the intercept term.
 \itemize{
 \item cyclic: update the intercept term when the first predictor is visited.
-\item after_each: update the intercept term after each slope update.
+\item after_each_\*: update the intercept term after each slope update.
 \item after_sweep_gradient: update the intercept term after each sweep a single
 gradient descent step
 \item after_sweep_newton: update the intercept term after each sweep a single

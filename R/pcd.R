@@ -20,7 +20,7 @@
 #' "soft", or "mcp". For "mcp", the `gamma` parameter must be specified.
 #' @param intercept_update the strategy for updating the intercept term.
 #' * cyclic: update the intercept term when the first predictor is visited.
-#' * after_each: update the intercept term after each slope update.
+#' * after_each_\*: update the intercept term after each slope update.
 #' * after_sweep_gradient: update the intercept term after each sweep a single
 #'   gradient descent step
 #' * after_sweep_newton: update the intercept term after each sweep a single
@@ -73,9 +73,9 @@ pcd <- function(
     stop("max_iter must be a positive integer or -1")
   }
   if (max_iter == -1L || is.infinite(max_iter)) {
-    max_it <- Inf
+    max_iter <- Inf
   } else {
-    max_it <- as.integer(max_iter)
+    max_iter <- as.integer(max_iter)
   }
 
   # match arguments
@@ -236,7 +236,7 @@ cd_engine <- function(
       # z is the unpenalized least‐squares coordinate update
       z <- (sum(X[, j] * r) / n +
         (col_norm_squared[j] / n) * beta[j]
-      ) / denom
+      )
 
       # update beta using the proximal operator
       beta_new <- prox_fun(z, alpha * lambda * (j > 1)) / denom
@@ -271,9 +271,9 @@ cd_engine <- function(
             newton_max <- 50
             acc <- 0
             for (k in seq_len(newton_max)) {
-              g <- -sum(r)
-              if (abs(g) < newton_tol) break
-              step <- -g / H_0
+              grad_0 <- -sum(r)
+              if (abs(grad_0) < newton_tol) break
+              step <- -grad_0 / H_0
               r <- r - step
               acc <- acc + step
             }
@@ -433,10 +433,10 @@ cd_engine_logistic <- function(X, y,
               newton_max <- 50
               acc <- 0
               for (k in seq_len(newton_max)) {
-                gk <- sum(pi - y)
-                if (abs(gk) < newton_tol) break
-                hk <- sum(pi * (1 - pi))
-                step0 <- -gk / hk
+                grad_0 <- sum(pi - y)
+                if (abs(grad_0) < newton_tol) break
+                H_0 <- sum(pi * (1 - pi))
+                step0 <- -grad_0 / H_0
                 # update intercept, eta, and pi incrementally
                 beta[1] <- beta[1] + step0
                 eta <- eta + step0
@@ -476,11 +476,11 @@ cd_engine_logistic <- function(X, y,
               grad_0 <- sum(pi - y)
               if (abs(grad_0) < newton_tol) break
               H_0 <- sum(pi * (1 - pi))
-              step <- -grad_0 / H_0
-              beta[1] <- beta[1] + step
-              eta <- eta + step
+              step0 <- -grad_0 / H_0
+              beta[1] <- beta[1] + step0
+              eta <- eta + step0
               pi <- 1 / (1 + exp(-eta))
-              acc <- acc + step
+              acc <- acc + step0
             }
             acc
           }
@@ -556,11 +556,11 @@ cd_engine_logistic <- function(X, y,
               acc <- 0
               for (k in seq_len(newton_max)) {
                 grad_0 <- sum(pi - y)
-                if (abs(gk) < newton_tol) break
+                if (abs(grad_0) < newton_tol) break
                 H_0 <- sum(pi * (1 - pi))
-                step0 <- -grad_0 / H_0 <-
-                  # update intercept, eta, and pi incrementally
-                  beta[1] <- beta[1] + step0
+                step0 <- -grad_0 / H_0
+                # update intercept, eta, and pi incrementally
+                beta[1] <- beta[1] + step0
                 eta <- eta + step0
                 pi <- 1 / (1 + exp(-eta))
                 acc <- acc + step0
@@ -588,7 +588,7 @@ cd_engine_logistic <- function(X, y,
         grad_0 <- sum(pi - y)
         H_0 <- sum(pi * (1 - pi))
         delta0 <- switch(intercept_update,
-          after_sweep_gradient = -4 * sum(pi - y) / n,
+          after_sweep_gradient = -sum(pi - y) / n,
           after_sweep_newton = -sum(pi - y) / H_0,
           after_sweep_exact = {
             newton_tol <- 1e-15
@@ -597,11 +597,11 @@ cd_engine_logistic <- function(X, y,
             for (k in seq_len(newton_max)) {
               grad_0 <- sum(pi - y)
               if (abs(grad_0) < newton_tol) break
-              step <- -grad_0 / H_0
-              beta[1] <- beta[1] + step
-              eta <- eta + step
+              step0 <- -grad_0 / H_0
+              beta[1] <- beta[1] + step0
+              eta <- eta + step0
               pi <- 1 / (1 + exp(-eta))
-              acc <- acc + step
+              acc <- acc + step0
             }
             acc
           }
@@ -609,6 +609,11 @@ cd_engine_logistic <- function(X, y,
         if (delta0 != 0) {
           beta[1] <- beta[1] + delta0
           delta_max <- max(delta_max, abs(delta0))
+          eta <- X %*% beta
+          pi <- 1 / (1 + exp(-eta))
+          w <- pi * (1 - pi)
+          z <- eta + (y - pi) / w
+          r <- z - eta
         }
       }
 
