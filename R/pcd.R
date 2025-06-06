@@ -439,7 +439,7 @@ cd_engine_logistic <- function(X, y,
           grad_0 <- sum(pi - y)
           H_0 <- sum(pi * (1 - pi))
           delta0 <- switch(intercept_update,
-            after_each_gradient = -grad_0 / n,
+            after_each_gradient = -4 * grad_0 / n,
             after_each_newton = -grad_0 / H_0,
             after_each_exact = {
               grad_tol <- 1e-12
@@ -447,11 +447,10 @@ cd_engine_logistic <- function(X, y,
               acc <- 0
 
               for (k in seq_len(max_inner)) {
-                grad_0 <- sum(pi - y) / n # average gradient wrt β0
+                grad_0 <- 4 * sum(pi - y) / n # average gradient wrt β0
                 if (abs(grad_0) < grad_tol) break
 
-                step0 <- -lr * grad_0 # proper gradient-descent step
-                beta[1] <- beta[1] + step0
+                step0 <- -lr * grad_0
                 eta <- eta + step0
                 pi <- 1 / (1 + exp(-eta))
 
@@ -463,9 +462,14 @@ cd_engine_logistic <- function(X, y,
           # update intercept
           if (delta0 != 0) {
             beta[1] <- beta[1] + delta0
-            eta <- eta + delta0
-            pi <- 1 / (1 + exp(-eta))
+            if (intercept_update != "after_each_exact") {
+              eta <- eta + delta0
+              pi <- 1 / (1 + exp(-eta))
+            }
             delta_max <- max(delta_max, abs(delta0))
+            w <- pi * (1 - pi)
+            z <- eta + (y - pi) / w
+            r <- z - eta
           }
         }
       }
@@ -480,7 +484,7 @@ cd_engine_logistic <- function(X, y,
         grad_0 <- sum(pi - y)
         H_0 <- sum(pi * (1 - pi))
         delta0 <- switch(intercept_update,
-          after_sweep_gradient = -grad_0 / n,
+          after_sweep_gradient = -4 * grad_0 / n,
           after_sweep_newton = -grad_0 / H_0,
           after_sweep_exact = {
             grad_tol <- 1e-12
@@ -488,11 +492,10 @@ cd_engine_logistic <- function(X, y,
             acc <- 0
 
             for (k in seq_len(max_inner)) {
-              grad_0 <- sum(pi - y) / n # average gradient wrt β0
+              grad_0 <- 4 * sum(pi - y) / n # average gradient wrt β0
               if (abs(grad_0) < grad_tol) break
 
-              step0 <- -lr * grad_0 # proper gradient-descent step
-              beta[1] <- beta[1] + step0
+              step0 <- -lr * grad_0
               eta <- eta + step0
               pi <- 1 / (1 + exp(-eta))
 
@@ -504,8 +507,10 @@ cd_engine_logistic <- function(X, y,
         # update intercept
         if (delta0 != 0) {
           beta[1] <- beta[1] + delta0
-          eta <- eta + delta0
-          pi <- 1 / (1 + exp(-eta))
+          if (intercept_update != "after_sweep_exact") {
+            eta <- eta + delta0
+            pi <- 1 / (1 + exp(-eta))
+          }
           delta_max <- max(delta_max, abs(delta0))
         }
       }
@@ -569,7 +574,7 @@ cd_engine_logistic <- function(X, y,
           grad_0 <- sum(pi - y)
           H_0 <- sum(pi * (1 - pi))
           delta0 <- switch(intercept_update,
-            after_each_gradient = -grad_0 / n,
+            after_each_gradient = -4 * grad_0 / n,
             after_each_newton = -grad_0 / H_0,
             after_each_exact = {
               grad_tol <- 1e-12
@@ -577,11 +582,10 @@ cd_engine_logistic <- function(X, y,
               acc <- 0
 
               for (k in seq_len(max_inner)) {
-                grad_0 <- sum(pi - y) / n # average gradient wrt β0
+                grad_0 <- 4 * sum(pi - y) / n
                 if (abs(grad_0) < grad_tol) break
 
-                step0 <- -lr * grad_0 # proper gradient-descent step
-                beta[1] <- beta[1] + step0
+                step0 <- -lr * grad_0
                 eta <- eta + step0
                 pi <- 1 / (1 + exp(-eta))
 
@@ -593,9 +597,14 @@ cd_engine_logistic <- function(X, y,
           # update intercept
           if (delta0 != 0) {
             beta[1] <- beta[1] + delta0
-            eta <- eta + delta0
-            pi <- 1 / (1 + exp(-eta))
+            if (intercept_update != "after_each_exact") {
+              eta <- eta + delta0
+              pi <- 1 / (1 + exp(-eta))
+            }
             delta_max <- max(delta_max, abs(delta0))
+            w <- pi * (1 - pi)
+            z <- eta + (y - pi) / w
+            r <- z - eta
           }
         }
       }
@@ -610,7 +619,7 @@ cd_engine_logistic <- function(X, y,
         grad_0 <- sum(pi - y)
         H_0 <- sum(pi * (1 - pi))
         delta0 <- switch(intercept_update,
-          after_sweep_gradient = -sum(pi - y) / n,
+          after_sweep_gradient = -4 * grad_0 / n,
           after_sweep_newton = -sum(pi - y) / H_0,
           after_sweep_exact = {
             grad_tol <- 1e-12
@@ -618,11 +627,10 @@ cd_engine_logistic <- function(X, y,
             acc <- 0
 
             for (k in seq_len(max_inner)) {
-              grad_0 <- sum(pi - y) / n # average gradient wrt β0
+              grad_0 <- 4 * sum(pi - y) / n
               if (abs(grad_0) < grad_tol) break
 
-              step0 <- -lr * grad_0 # proper gradient-descent step
-              beta[1] <- beta[1] + step0
+              step0 <- -lr * grad_0
               eta <- eta + step0
               pi <- 1 / (1 + exp(-eta))
 
@@ -634,11 +642,10 @@ cd_engine_logistic <- function(X, y,
         if (delta0 != 0) {
           beta[1] <- beta[1] + delta0
           delta_max <- max(delta_max, abs(delta0))
-          eta <- X %*% beta
-          pi <- 1 / (1 + exp(-eta))
-          w <- pi * (1 - pi)
-          z <- eta + (y - pi) / w
-          r <- z - eta
+          if (intercept_update != "after_sweep_exact") {
+            eta <- eta + delta0
+            pi <- 1 / (1 + exp(-eta))
+          }
         }
       }
 
