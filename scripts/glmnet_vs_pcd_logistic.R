@@ -26,7 +26,7 @@ fit_pcd <- pcd(
   lambda = 0.1,
   prox_fun = "soft",
   standardize = TRUE,
-  intercept_update = "after_sweep_exact",
+  intercept_update = "after_each_exact",
   family = "binomial",
   method = "gradient",
   tol = tol,
