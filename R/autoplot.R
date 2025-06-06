@@ -1,8 +1,3 @@
-library(tibble)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-
 #' Plot convergence plots for pcd objects
 #'
 #' @param x A `pcd` object.
@@ -10,6 +5,10 @@ library(ggplot2)
 #' which will use a default value of `1e-12`.
 #'
 #' @return A ggplot object.
+#' @import ggplot2
+#' @importFrom dplyr mutate filter group_by summarize inner_join slice_head ungroup
+#' @importFrom tidyr pivot_longer
+#' @importFrom tibble as_tibble
 #' @export
 autoplot.pcd_out <- function(x, tol = NULL, legend = TRUE) {
   if (is.null(tol)) {

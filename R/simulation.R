@@ -1,5 +1,6 @@
 library(MASS) # for mvrnorm
 library(freqdom) # for rar()
+library(Matrix) # for nearPD, kronecker
 
 #' Simulate independent design
 #'
@@ -7,9 +8,10 @@ library(freqdom) # for rar()
 #' @param p Number of features
 #' @param k Number of non-zero coefficients
 #' @param error_dist Error distribution: "normal", "t", "uniform"
-#' @param beta Optional true coefficient vector
+#' @param beta Optional true coefficient vector (length p+1: intercept + slopes)
+#' @param family "gaussian" or "binomial"
 #' @param seed Random seed
-#' @return List with X, y, beta
+#' @return List with X (n×p), y, beta (length p+1)
 #' @export
 simulate_independent <- function(n, p, k,
                                  error_dist = c("normal", "t", "uniform"),
@@ -17,52 +19,46 @@ simulate_independent <- function(n, p, k,
                                  family = c("gaussian", "binomial"),
                                  seed = 96) {
   set.seed(seed)
-  # covariance matrix
-  Sigma <- diag(p)
 
-  # model matrix
+  # 1) raw features (n x p)
+  Sigma <- diag(p)
   X <- MASS::mvrnorm(n, mu = runif(p, -2, 2), Sigma = Sigma)
 
-  # add intercept
-  X <- cbind(rep(1, p), X)
-
-  # init beta if not provided
+  # 2) true beta = (intercept, slopes)
   if (is.null(beta)) {
-    beta <- numeric(p - 1)
-    nz <- sample.int(p - 1, k)
-    beta[nz] <- rnorm(k)
-    intercept <- runif(1, -2, 2)
-    beta <- c(intercept, beta)
+    beta <- numeric(p + 1)
+    nz <- sample.int(p, k)
+    beta[nz + 1] <- rnorm(k)
+    beta[1] <- runif(1, -2, 2)
   }
 
-  # generate errors
+  # 3) error
   error_dist <- match.arg(error_dist)
   eps <- switch(error_dist,
-    "normal" = rnorm(n, 0, 1),
-    "t" = rt(n, df = 5),
-    "uniform" = runif(n, -3, 3)
+    normal  = rnorm(n),
+    t       = rt(n, df = 5),
+    uniform = runif(n, -3, 3)
   )
 
-  if (family == "binomial") {
-    # convert to binary response
-    eta <- beta[1] + X %*% beta[-1] + eps
+  # 4) linear predictor & response
+  eta <- as.numeric(beta[1] + X %*% beta[-1] + eps)
+  if (family[1] == "binomial") {
     prob <- 1 / (1 + exp(-eta))
     y <- rbinom(n, 1, prob)
-  } else if (family == "gaussian") {
-    # continuous response
-    y <- beta[1] + X %*% beta[-1] + eps
+  } else if (family[1] == "gaussian") {
+    y <- eta
   } else {
-    stop("family must be either 'gaussian' or 'binomial'")
+    stop("`family` must be 'gaussian' or 'binomial'")
   }
 
-  # return
-  list(X = X, y = as.numeric(y), beta = beta)
+  list(X = X, y = y, beta = beta)
 }
+
 
 #' Simulate correlated design
 #'
 #' @inheritParams simulate_independent
-#' @param rho Correlation coefficient used to simulate from uniform 0 to rho
+#' @param rho Correlation coefficient (off‐diagonals uniform on [0, rho])
 #' @export
 simulate_correlated <- function(n, p, k,
                                 rho = 0,
@@ -72,59 +68,52 @@ simulate_correlated <- function(n, p, k,
                                 seed = 96) {
   set.seed(seed)
 
-  # correlation matrix
-  R <- runif(p^2, 0, rho) |> matrix(p, p)
+  # 1) build covariance
+  R <- matrix(runif(p^2, 0, rho), p, p)
   diag(R) <- 1
+  Sigma <- nearPD(R, keepDiag = TRUE, ensureSymmetry = TRUE)$mat
 
-  # covariance matrix
-  S <- rep(1, p) # sd is set to 1 for all variables
-  Sigma <- outer(S, S) * R
-
-  # this is somewhat hacky, but turn this into a positive definite
-  # symmetric matrix
-  Sigma <- nearPD(Sigma, keepDiag = TRUE, ensureSymmetry = TRUE)$mat
-
-  # model matrix
+  # 2) raw features
   X <- MASS::mvrnorm(n, mu = rep(0, p), Sigma = Sigma)
 
-  # init beta if not provided
+  # 3) true beta
   if (is.null(beta)) {
-    beta <- numeric(p)
+    beta <- numeric(p + 1)
     nz <- sample.int(p, k)
-    beta[nz] <- rnorm(k)
-    intercept <- runif(1, -2, 2)
-    beta <- c(intercept, beta)
+    beta[nz + 1] <- rnorm(k)
+    beta[1] <- runif(1, -2, 2)
   }
 
-  # generate errors
+  # 4) error
   error_dist <- match.arg(error_dist)
   eps <- switch(error_dist,
-    "normal" = rnorm(n, 0, 1),
-    "t" = rt(n, df = 5),
-    "uniform" = runif(n, -3, 3)
+    normal  = rnorm(n),
+    t       = rt(n, df = 5),
+    uniform = runif(n, -3, 3)
   )
 
-  if (family == "binomial") {
-    # convert to binary response
-    eta <- beta[1] + X %*% beta[-1] + eps
+  # 5) response
+  eta <- as.numeric(beta[1] + X %*% beta[-1] + eps)
+  if (family[1] == "binomial") {
     prob <- 1 / (1 + exp(-eta))
     y <- rbinom(n, 1, prob)
-  } else if (family == "gaussian") {
-    # continuous response
-    y <- beta[1] + X %*% beta[-1] + eps
+  } else if (family[1] == "gaussian") {
+    y <- eta
   } else {
-    stop("family must be either 'gaussian' or 'binomial'")
+    stop("`family` must be 'gaussian' or 'binomial'")
   }
 
-  # returns
   list(X = X, y = y, beta = beta)
 }
 
-#' Simulate block-diagonal design
+
+#' Simulate block‐diagonal design
 #'
 #' @inheritParams simulate_independent
-#' @param rho Correlation coefficient for block matrix (non-diagonals)
-#' @param block_sizes Sizes of blocks in the block-diagonal matrix
+#' @param rho Correlation coefficient for within‐block off‐diagonals
+#' @param block_sizes Either
+#'   * a single integer B, meaning “make B equally‐sized blocks” (so p must be divisible by B), or
+#'   * a numeric vector of length B whose entries sum to p, giving each block’s size.
 #' @export
 simulate_block_diagonal <- function(n, p, k,
                                     rho = 0,
@@ -134,72 +123,73 @@ simulate_block_diagonal <- function(n, p, k,
                                     family = c("gaussian", "binomial"),
                                     seed = 96) {
   set.seed(seed)
-  if (is.null(block_sizes)) stop("block_sizes must be provided")
-  if (rho < 0 || rho > 1) stop("rho must be in [0,1]")
+  if (is.null(block_sizes)) {
+    stop("`block_sizes` must be provided")
+  }
 
-  # block correlation matrix
-  R <- Matrix::kronecker(
-    diag(k),
-    matrix(rho, nrow = block_sizes, ncol = block_sizes)
-  )
-  diag(R) <- 1
+  # interpret block_sizes
+  if (length(block_sizes) == 1L) {
+    B <- block_sizes
+    if (p %% B != 0L) {
+      stop("When block_sizes is a single integer B, p must be divisible by B")
+    }
+    block_sizes_vec <- rep(p / B, B)
+  } else {
+    block_sizes_vec <- block_sizes
+    if (sum(block_sizes_vec) != p) {
+      stop("When block_sizes is a vector, its entries must sum to p")
+    }
+  }
 
-  # covariance matrix
-  S <- rep(1, p) # sd is set to 1 for all variables
-  Sigma <- outer(S, S) * R
+  # build block covariance
+  mats <- lapply(block_sizes_vec, function(bs) matrix(rho, nrow = bs, ncol = bs))
+  Rblock <- Matrix::bdiag(mats)
+  diag(Rblock) <- 1
+  Sigma <- nearPD(Rblock, keepDiag = TRUE, ensureSymmetry = TRUE)$mat
 
-  # this is somewhat hacky, but turn this into a positive definite
-  # symmetric matrix
-  Sigma <- nearPD(Sigma, keepDiag = TRUE, ensureSymmetry = TRUE)$mat
-
-  # model matrix
+  # raw features
   X <- MASS::mvrnorm(n, mu = runif(p, 0, rho), Sigma = Sigma)
 
-  # add intercept
-  X <- cbind(rep(1, p), X)
-
-  # init beta if not provided
+  # true beta = (intercept, slopes)
   if (is.null(beta)) {
-    beta <- numeric(p - 1)
-    nz <- sample.int(p - 1, k)
-    beta[nz] <- rnorm(k)
-    intercept <- runif(1, -2, 2)
-    beta <- c(intercept, beta)
+    beta <- numeric(p + 1)
+    nz <- sample.int(p, k)
+    beta[nz + 1] <- rnorm(k)
+    beta[1] <- runif(1, -2, 2)
   }
 
-  # generate errors
+  # errors
   error_dist <- match.arg(error_dist)
   eps <- switch(error_dist,
-    "normal" = rnorm(n, 0, 1),
-    "t" = rt(n, df = 5),
-    "uniform" = runif(n, -3, 3)
+    normal  = rnorm(n),
+    t       = rt(n, df = 5),
+    uniform = runif(n, -3, 3)
   )
 
-  if (family == "binomial") {
-    # convert to binary response
-    eta <- beta[1] + X %*% beta[-1] + eps
+  # linear predictor + response
+  eta <- as.numeric(beta[1] + X %*% beta[-1] + eps)
+  if (family[1] == "binomial") {
     prob <- 1 / (1 + exp(-eta))
     y <- rbinom(n, 1, prob)
-  } else if (family == "gaussian") {
-    # continuous response
-    y <- beta[1] + X %*% beta[-1] + eps
+  } else if (family[1] == "gaussian") {
+    y <- eta
   } else {
-    stop("family must be either 'gaussian' or 'binomial'")
+    stop("`family` must be 'gaussian' or 'binomial'")
   }
 
-  # returns
   list(X = X, y = y, beta = beta)
 }
+
 
 #' Simulate VAR(1) / multivariate AR(1) design
 #'
 #' @inheritParams simulate_independent
-#' @param rho Correlation coefficient for AR(1) process
-#' @param burnin Number of initial observations to discard
-#' @param noise Type of noise to use for AR process: "mnormal" or "mt"
-#' @param sigma Covariance matrix for the noise
-#' @param df Degrees of freedom for t-distribution for noise
-#' @param Psi AR coefficient matrix
+#' @param rho AR(1) coefficient
+#' @param burnin Number of initial draws to discard
+#' @param noise "mnormal" or "mt"
+#' @param sigma Covariance for the noise (p×p)
+#' @param df Degrees of freedom for t‐noise
+#' @param Psi AR coefficient array (p×p×lag)
 #' @export
 simulate_ar1 <- function(n, p, k,
                          rho = 0,
@@ -210,58 +200,46 @@ simulate_ar1 <- function(n, p, k,
                          Psi = NULL,
                          error_dist = c("normal", "t", "uniform"),
                          beta = NULL,
+                         family = c("gaussian", "binomial"),
                          seed = 96) {
   set.seed(seed)
   noise <- match.arg(noise)
   if (is.null(sigma)) sigma <- diag(p)
-  if (is.null(Psi)) {
-    Psi <- array(0, dim = c(p, p, 1))
-    Psi[, , 1] <- diag(p) * rho
-  }
+  if (is.null(Psi)) Psi <- array(diag(p) * rho, dim = c(p, p, 1))
 
-  # generate model matrix using autoregressive process
+  # 1) raw AR(1) features
   X <- freqdom::rar(
-    n = n,
-    d = p,
-    Psi = Psi,
-    burnin = burnin,
-    noise = noise,
-    sigma = sigma,
-    df = df
+    n = n, d = p,
+    Psi = Psi, burnin = burnin,
+    noise = noise, sigma = sigma, df = df
   )
 
-  # add intercept
-  X <- cbind(rep(1, p), X)
-
-  # init beta if not provided
+  # 2) true beta
   if (is.null(beta)) {
-    beta <- numeric(p - 1)
-    nz <- sample.int(p - 1, k)
-    beta[nz] <- rnorm(k)
-    intercept <- runif(1, -2, 2)
-    beta <- c(intercept, beta)
+    beta <- numeric(p + 1)
+    nz <- sample.int(p, k)
+    beta[nz + 1] <- rnorm(k)
+    beta[1] <- runif(1, -2, 2)
   }
 
-  # generate errors
+  # 3) error
   error_dist <- match.arg(error_dist)
   eps <- switch(error_dist,
-    "normal" = rnorm(n, 0, 1),
-    "t" = rt(n, df = 5),
-    "uniform" = runif(n, -3, 3)
+    normal  = rnorm(n),
+    t       = rt(n, df = 5),
+    uniform = runif(n, -3, 3)
   )
 
-  if (family == "binomial") {
-    # convert to binary response
-    eta <- beta[1] + X %*% beta[-1] + eps
+  # 4) response
+  eta <- as.numeric(beta[1] + X %*% beta[-1] + eps)
+  if (family[1] == "binomial") {
     prob <- 1 / (1 + exp(-eta))
     y <- rbinom(n, 1, prob)
-  } else if (family == "gaussian") {
-    # continuous response
-    y <- beta[1] + X %*% beta[-1] + eps
+  } else if (family[1] == "gaussian") {
+    y <- eta
   } else {
-    stop("family must be either 'gaussian' or 'binomial'")
+    stop("`family` must be 'gaussian' or 'binomial'")
   }
 
-  # returns
   list(X = X, y = y, beta = beta)
 }

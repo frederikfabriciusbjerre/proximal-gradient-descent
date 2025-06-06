@@ -37,6 +37,8 @@
 #' @param max_iter the maximum number of iterations. If -1, the algorithm
 #' will run until convergence.
 #' @param standardize if TRUE, standardize the predictors before fitting the model.
+#' @param lr Learning rate for the intercept update. This is only relevant if
+#' `intercept_update` is set to `after_each_exact` or `after_sweep_exact`.
 #' @param gamma the concavity parameter for MCP. This parameter is only
 #' relevant if `prox_fun` is "mcp". It should be a positive number or `Inf`,
 #' which indicates that the MCP is equivalent to soft-thresholding.
@@ -61,6 +63,7 @@ pcd <- function(
     tol = 1e-8,
     max_iter = 1e5,
     standardize = TRUE,
+    lr = 1,
     gamma = -1, # MCP concavity parameter
     verbose = FALSE) {
   # checks
@@ -119,6 +122,7 @@ pcd <- function(
       max_iter = max_iter,
       intercept_update = intercept_update,
       method = method,
+      lr = lr,
       verbose = verbose
     )
 
@@ -132,6 +136,7 @@ pcd <- function(
       max_iter = max_iter,
       intercept_update = intercept_update,
       alpha = 1,
+      lr = 1,
       verbose = verbose
     )
   } else {
@@ -197,6 +202,7 @@ cd_engine <- function(
       "after_sweep_exact"
     ),
     alpha = 1, # elastic‐net mixing parameter (α=1 ⇒ lasso)
+    lr = 1,
     verbose = FALSE) {
   intercept_update <- match.arg(intercept_update)
   stopifnot(
@@ -226,6 +232,7 @@ cd_engine <- function(
 
     # update sloaps
     for (j in j_seq) {
+      x_j <- X[, j]
       # skip if colnorm squared is 0 or infinite
       if (!is.finite(col_norm_squared[j]) || col_norm_squared[j] == 0) next
 
@@ -234,7 +241,7 @@ cd_engine <- function(
       denom <- (col_norm_squared[j] / n) + (1 - alpha) * lambda
 
       # z is the unpenalized least‐squares coordinate update
-      z <- (sum(X[, j] * r) / n +
+      z <- (sum(x_j * r) / n +
         (col_norm_squared[j] / n) * beta[j]
       )
 
@@ -251,7 +258,7 @@ cd_engine <- function(
       #   r_i_new = z_i - (beta0 + sum_k X[i,k] * beta_k_new)
       #           = [z_i - (beta0 + sum_k X[i,k] * beta_k_old)] - X[i,j] * change
       #           = r_i_old - X[i,j] * change
-      r <- r - change * X[, j]
+      r <- r - change * x_j
       beta[j] <- beta_new
 
       # track max change for convergence
@@ -267,15 +274,15 @@ cd_engine <- function(
           after_each_newton = -grad_0 / H_0,
           # calculate exact intercept update with Newton's method
           after_each_exact = {
-            newton_tol <- 1e-15
+            newton_tol <- 1e-12
             newton_max <- 50
             acc <- 0
             for (k in seq_len(newton_max)) {
-              grad_0 <- -sum(r)
-              if (abs(grad_0) < newton_tol) break
-              step <- -grad_0 / H_0
-              r <- r - step
-              acc <- acc + step
+              g <- -sum(r)
+              if (abs(g) < newton_tol) break
+              step0 <- -g / H_0
+              r <- r - step0
+              acc <- acc + step0
             }
             acc
           }
@@ -291,6 +298,10 @@ cd_engine <- function(
 
     # intercept after sweep
     if (has_intercept && startsWith(intercept_update, "after_sweep")) {
+      # recompute eta and pi
+      eta <- as.numeric(X %*% beta)
+      pi <- 1 / (1 + exp(-eta))
+
       # gradient and hessian for intercept update
       grad_0 <- -sum(r)
       H_0 <- n
@@ -299,15 +310,15 @@ cd_engine <- function(
         after_sweep_newton = -grad_0 / H_0,
         # calculate exact intercept update with Newton's method
         after_sweep_exact = {
-          newton_tol <- 1e-15
+          newton_tol <- 1e-12
           newton_max <- 50
           acc <- 0
           for (k in seq_len(newton_max)) {
             g <- -sum(r)
             if (abs(g) < newton_tol) break
-            step <- -g / H_0
-            r <- r - step
-            acc <- acc + step
+            step0 <- -g / H_0
+            r <- r - step0
+            acc <- acc + step0
           }
           acc
         }
@@ -362,6 +373,7 @@ cd_engine_logistic <- function(X, y,
                                prox_fun = prox_soft,
                                tol = 1e-8,
                                max_iter = Inf,
+                               lr = 1,
                                verbose = FALSE) {
   # checks
   intercept_update <- match.arg(intercept_update)
@@ -402,8 +414,9 @@ cd_engine_logistic <- function(X, y,
       pi <- 1 / (1 + exp(-eta))
 
       for (j in j_seq) {
+        x_j <- X[, j]
         # gradient
-        grad_j <- sum((pi - y) * X[, j]) / n
+        grad_j <- sum((pi - y) * x_j) / n
         t_j <- 1 / L_j[j]
 
         # un‐penalized step + soft‐threshold
@@ -417,7 +430,7 @@ cd_engine_logistic <- function(X, y,
         delta_max <- max(delta_max, abs(change))
 
         # update eta and pi incrementally
-        eta <- eta + change * X[, j]
+        eta <- eta + change * x_j
         pi <- 1 / (1 + exp(-eta))
 
         # intercept after each slope update
@@ -429,18 +442,19 @@ cd_engine_logistic <- function(X, y,
             after_each_gradient = -grad_0 / n,
             after_each_newton = -grad_0 / H_0,
             after_each_exact = {
-              newton_tol <- 1e-15
-              newton_max <- 50
+              grad_tol <- 1e-12
+              max_inner <- 1000 # safety cap
               acc <- 0
-              for (k in seq_len(newton_max)) {
-                grad_0 <- sum(pi - y)
-                if (abs(grad_0) < newton_tol) break
-                H_0 <- sum(pi * (1 - pi))
-                step0 <- -grad_0 / H_0
-                # update intercept, eta, and pi incrementally
+
+              for (k in seq_len(max_inner)) {
+                grad_0 <- sum(pi - y) / n # average gradient wrt β0
+                if (abs(grad_0) < grad_tol) break
+
+                step0 <- -lr * grad_0 # proper gradient-descent step
                 beta[1] <- beta[1] + step0
                 eta <- eta + step0
                 pi <- 1 / (1 + exp(-eta))
+
                 acc <- acc + step0
               }
               acc
@@ -469,17 +483,19 @@ cd_engine_logistic <- function(X, y,
           after_sweep_gradient = -grad_0 / n,
           after_sweep_newton = -grad_0 / H_0,
           after_sweep_exact = {
-            newton_tol <- 1e-15
-            newton_max <- 50
+            grad_tol <- 1e-12
+            max_inner <- 1000 # safety cap
             acc <- 0
-            for (k in seq_len(newton_max)) {
-              grad_0 <- sum(pi - y)
-              if (abs(grad_0) < newton_tol) break
-              H_0 <- sum(pi * (1 - pi))
-              step0 <- -grad_0 / H_0
+
+            for (k in seq_len(max_inner)) {
+              grad_0 <- sum(pi - y) / n # average gradient wrt β0
+              if (abs(grad_0) < grad_tol) break
+
+              step0 <- -lr * grad_0 # proper gradient-descent step
               beta[1] <- beta[1] + step0
               eta <- eta + step0
               pi <- 1 / (1 + exp(-eta))
+
               acc <- acc + step0
             }
             acc
@@ -524,12 +540,13 @@ cd_engine_logistic <- function(X, y,
 
       # main loop
       for (j in j_seq) {
+        x_j <- X[, j]
         # partial residual
-        r_j <- r + X[, j] * beta[j]
+        r_j <- r + x_j * beta[j]
 
         # weighted‐LS grad and hessian
-        grad_j <- sum(w * X[, j] * r_j) / n
-        H_j <- sum(w * X[, j]^2) / n
+        grad_j <- sum(w * x_j * r_j) / n
+        H_j <- sum(w * x_j^2) / n
 
         # update
         beta_new <- prox_fun(grad_j, lambda * (j > 1)) / H_j
@@ -540,7 +557,11 @@ cd_engine_logistic <- function(X, y,
         delta_max <- max(delta_max, abs(change))
 
         # update residual
-        r <- r - X[, j] * change
+        r <- r - x_j * change
+
+        # update eta and pi incrementally
+        eta <- eta + change * x_j
+        pi <- 1 / (1 + exp(-eta))
 
         # intercept after each update
         if (has_intercept && startsWith(intercept_update, "after_each") && j > 1) {
@@ -551,18 +572,19 @@ cd_engine_logistic <- function(X, y,
             after_each_gradient = -grad_0 / n,
             after_each_newton = -grad_0 / H_0,
             after_each_exact = {
-              newton_tol <- 1e-15
-              newton_max <- 50
+              grad_tol <- 1e-12
+              max_inner <- 1000 # safety cap
               acc <- 0
-              for (k in seq_len(newton_max)) {
-                grad_0 <- sum(pi - y)
-                if (abs(grad_0) < newton_tol) break
-                H_0 <- sum(pi * (1 - pi))
-                step0 <- -grad_0 / H_0
-                # update intercept, eta, and pi incrementally
+
+              for (k in seq_len(max_inner)) {
+                grad_0 <- sum(pi - y) / n # average gradient wrt β0
+                if (abs(grad_0) < grad_tol) break
+
+                step0 <- -lr * grad_0 # proper gradient-descent step
                 beta[1] <- beta[1] + step0
                 eta <- eta + step0
                 pi <- 1 / (1 + exp(-eta))
+
                 acc <- acc + step0
               }
               acc
@@ -591,16 +613,19 @@ cd_engine_logistic <- function(X, y,
           after_sweep_gradient = -sum(pi - y) / n,
           after_sweep_newton = -sum(pi - y) / H_0,
           after_sweep_exact = {
-            newton_tol <- 1e-15
-            newton_max <- 50
+            grad_tol <- 1e-12
+            max_inner <- 1000 # safety cap
             acc <- 0
-            for (k in seq_len(newton_max)) {
-              grad_0 <- sum(pi - y)
-              if (abs(grad_0) < newton_tol) break
-              step0 <- -grad_0 / H_0
+
+            for (k in seq_len(max_inner)) {
+              grad_0 <- sum(pi - y) / n # average gradient wrt β0
+              if (abs(grad_0) < grad_tol) break
+
+              step0 <- -lr * grad_0 # proper gradient-descent step
               beta[1] <- beta[1] + step0
               eta <- eta + step0
               pi <- 1 / (1 + exp(-eta))
+
               acc <- acc + step0
             }
             acc

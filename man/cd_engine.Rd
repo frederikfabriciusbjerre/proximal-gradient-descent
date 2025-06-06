@@ -15,6 +15,7 @@ cd_engine(
     "after_each_exact", "after_sweep_gradient", "after_sweep_newton",
     "after_sweep_exact"),
   alpha = 1,
+  lr = 1,
   verbose = FALSE
 )
 }
@@ -45,6 +46,9 @@ Newton's method step
 \item after_sweep_exact: update the intercept term after using Newtons method
 until convergence
 }}
+
+\item{lr}{Learning rate for the intercept update. This is only relevant if
+\code{intercept_update} is set to \code{after_each_exact} or \code{after_sweep_exact}.}
 
 \item{verbose}{if TRUE, print progress messages.}
 }

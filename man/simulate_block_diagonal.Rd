@@ -2,7 +2,7 @@
 % Please edit documentation in R/simulation.R
 \name{simulate_block_diagonal}
 \alias{simulate_block_diagonal}
-\title{Simulate block-diagonal design}
+\title{Simulate block‐diagonal design}
 \usage{
 simulate_block_diagonal(
   n,
@@ -23,16 +23,22 @@ simulate_block_diagonal(
 
 \item{k}{Number of non-zero coefficients}
 
-\item{rho}{Correlation coefficient for block matrix (non-diagonals)}
+\item{rho}{Correlation coefficient for within‐block off‐diagonals}
 
-\item{block_sizes}{Sizes of blocks in the block-diagonal matrix}
+\item{block_sizes}{Either
+\itemize{
+\item a single integer B, meaning “make B equally‐sized blocks” (so p must be divisible by B), or
+\item a numeric vector of length B whose entries sum to p, giving each block’s size.
+}}
 
 \item{error_dist}{Error distribution: "normal", "t", "uniform"}
 
-\item{beta}{Optional true coefficient vector}
+\item{beta}{Optional true coefficient vector (length p+1: intercept + slopes)}
+
+\item{family}{"gaussian" or "binomial"}
 
 \item{seed}{Random seed}
 }
 \description{
-Simulate block-diagonal design
+Simulate block‐diagonal design
 }

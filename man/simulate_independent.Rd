@@ -23,12 +23,14 @@ simulate_independent(
 
 \item{error_dist}{Error distribution: "normal", "t", "uniform"}
 
-\item{beta}{Optional true coefficient vector}
+\item{beta}{Optional true coefficient vector (length p+1: intercept + slopes)}
+
+\item{family}{"gaussian" or "binomial"}
 
 \item{seed}{Random seed}
 }
 \value{
-List with X, y, beta
+List with X (n×p), y, beta (length p+1)
 }
 \description{
 Simulate independent design

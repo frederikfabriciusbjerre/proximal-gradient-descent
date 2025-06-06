@@ -17,6 +17,7 @@ pcd(
   tol = 1e-08,
   max_iter = 1e+05,
   standardize = TRUE,
+  lr = 1,
   gamma = -1,
   verbose = FALSE
 )
@@ -60,6 +61,9 @@ change in coefficients is less than this value.}
 will run until convergence.}
 
 \item{standardize}{if TRUE, standardize the predictors before fitting the model.}
+
+\item{lr}{Learning rate for the intercept update. This is only relevant if
+\code{intercept_update} is set to \code{after_each_exact} or \code{after_sweep_exact}.}
 
 \item{gamma}{the concavity parameter for MCP. This parameter is only
 relevant if \code{prox_fun} is "mcp". It should be a positive number or \code{Inf},

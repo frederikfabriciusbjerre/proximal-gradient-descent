@@ -16,6 +16,7 @@ simulate_ar1(
   Psi = NULL,
   error_dist = c("normal", "t", "uniform"),
   beta = NULL,
+  family = c("gaussian", "binomial"),
   seed = 96
 )
 }
@@ -26,21 +27,23 @@ simulate_ar1(
 
 \item{k}{Number of non-zero coefficients}
 
-\item{rho}{Correlation coefficient for AR(1) process}
+\item{rho}{AR(1) coefficient}
 
-\item{burnin}{Number of initial observations to discard}
+\item{burnin}{Number of initial draws to discard}
 
-\item{noise}{Type of noise to use for AR process: "mnormal" or "mt"}
+\item{noise}{"mnormal" or "mt"}
 
-\item{sigma}{Covariance matrix for the noise}
+\item{sigma}{Covariance for the noise (p×p)}
 
-\item{df}{Degrees of freedom for t-distribution for noise}
+\item{df}{Degrees of freedom for t‐noise}
 
-\item{Psi}{AR coefficient matrix}
+\item{Psi}{AR coefficient array (p×p×lag)}
 
 \item{error_dist}{Error distribution: "normal", "t", "uniform"}
 
-\item{beta}{Optional true coefficient vector}
+\item{beta}{Optional true coefficient vector (length p+1: intercept + slopes)}
+
+\item{family}{"gaussian" or "binomial"}
 
 \item{seed}{Random seed}
 }

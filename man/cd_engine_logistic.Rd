@@ -16,6 +16,7 @@ cd_engine_logistic(
   prox_fun = prox_soft,
   tol = 1e-08,
   max_iter = Inf,
+  lr = 1,
   verbose = FALSE
 )
 }
@@ -52,6 +53,9 @@ change in coefficients is less than this value.}
 
 \item{max_iter}{the maximum number of iterations. If -1, the algorithm
 will run until convergence.}
+
+\item{lr}{Learning rate for the intercept update. This is only relevant if
+\code{intercept_update} is set to \code{after_each_exact} or \code{after_sweep_exact}.}
 
 \item{verbose}{if TRUE, print progress messages.}
 }

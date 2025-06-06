@@ -22,11 +22,13 @@ simulate_correlated(
 
 \item{k}{Number of non-zero coefficients}
 
-\item{rho}{Correlation coefficient used to simulate from uniform 0 to rho}
+\item{rho}{Correlation coefficient (off‐diagonals uniform on \link{0, rho})}
 
 \item{error_dist}{Error distribution: "normal", "t", "uniform"}
 
-\item{beta}{Optional true coefficient vector}
+\item{beta}{Optional true coefficient vector (length p+1: intercept + slopes)}
+
+\item{family}{"gaussian" or "binomial"}
 
 \item{seed}{Random seed}
 }
