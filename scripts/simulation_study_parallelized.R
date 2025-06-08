@@ -23,10 +23,10 @@ data_settings <- data.frame(
 )
 
 other_factors <- expand.grid(
-  design = "correlated", # c("independent", "correlated", "block", "ar1"),
-  family = c("binomial"),
+  design = c("independent", "correlated", "block", "ar1"),
+  family = c("gaussian", "binomial"),
   k = c(5, 20),
-  rho = c(0.5, 1),
+  rho = c(0.5, 0.9),
   error_dist = c("normal", "t", "uniform"),
   seed = 1:10,
   stringsAsFactors = FALSE
@@ -110,7 +110,7 @@ run_one <- function(sim_row, pcd_row) {
     prox_fun         = pcd_row$prox_fun,
     intercept_update = pcd_row$intercept_update,
     family           = sim_row$family,
-    method           = pcd_row$method, # binomial only in this script
+    method           = pcd_row$method,
     tol              = tol,
     max_iter         = max_iter,
     standardize      = standardize,
