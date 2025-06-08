@@ -146,6 +146,7 @@ pcd <- function(
   # extract beta and path
   beta_std <- engine_out$beta
   beta_path <- engine_out$beta_path
+  n_updates <- engine_out$n_updates
 
   colnames(beta_path) <- colnames(X)
 
@@ -167,7 +168,12 @@ pcd <- function(
   )
 
   structure(
-    list(df = out_df, path = beta_path, terms = colnames(X)),
+    list(
+      df = out_df,
+      path = beta_path,
+      terms = colnames(X),
+      n_updates = n_updates
+    ),
     class = "pcd_out"
   )
 }
@@ -222,7 +228,7 @@ cd_engine <- function(
 
   # initialize beta path for convergence plotting
   beta_path <- list()
-
+  n_updates <- 0
   repeat {
     iter <- iter + 1L
     delta_max <- 0 # max change in coefficients
@@ -247,6 +253,7 @@ cd_engine <- function(
 
       # update beta using the proximal operator
       beta_new <- prox_fun(z, alpha * lambda * (j > 1)) / denom
+      n_updates <- n_updates + 1L
 
       # save the change
       change <- beta_new - beta[j]
@@ -278,6 +285,7 @@ cd_engine <- function(
             newton_max <- 50
             acc <- 0
             for (k in seq_len(newton_max)) {
+              n_updates <- n_updates + 1L
               g <- -sum(r)
               if (abs(g) < newton_tol) break
               step0 <- -g / H_0
@@ -289,6 +297,7 @@ cd_engine <- function(
         )
         # update intercept
         if (delta0 != 0) {
+          n_updates <- n_updates + 1L
           beta[1] <- beta[1] + delta0
           r <- r - delta0
           delta_max <- max(delta_max, abs(delta0))
@@ -314,6 +323,7 @@ cd_engine <- function(
           newton_max <- 50
           acc <- 0
           for (k in seq_len(newton_max)) {
+            n_updates <- n_updates + 1L
             g <- -sum(r)
             if (abs(g) < newton_tol) break
             step0 <- -g / H_0
@@ -325,6 +335,7 @@ cd_engine <- function(
       )
       # update intercept
       if (delta0 != 0) {
+        n_updates <- n_updates + 1L
         beta[1] <- beta[1] + delta0
         if (intercept_update != "after_sweep_exact") {
           r <- r - delta0
@@ -349,7 +360,7 @@ cd_engine <- function(
   # convert beta path to matrix
   beta_path <- do.call(rbind, beta_path)
 
-  return(list(beta_path = beta_path, beta = beta))
+  return(list(beta_path = beta_path, beta = beta, n_updates))
 }
 
 #' Logistic regression via coordinate descent, logistic loss
@@ -395,7 +406,7 @@ cd_engine_logistic <- function(X, y,
 
   # initialize beta path for convergence plotting
   beta_path <- list()
-
+  n_updates <- 0L
 
   # first‐order proximal gradient method
   if (method == "gradient") {
@@ -423,6 +434,8 @@ cd_engine_logistic <- function(X, y,
         z <- beta[j] - t_j * grad_j
         beta_new <- prox_fun(z, lambda * t_j * (j > 1))
 
+        n_updates <- n_updates + 1L
+
         change <- beta_new - beta[j]
         if (!is.finite(change) || change == 0) next
 
@@ -447,6 +460,7 @@ cd_engine_logistic <- function(X, y,
               acc <- 0
 
               for (k in seq_len(max_inner)) {
+                n_updates <- n_updates + 1L
                 grad_0 <- 4 * sum(pi - y) / n # average gradient wrt β0
                 if (abs(grad_0) < grad_tol) break
 
@@ -461,6 +475,7 @@ cd_engine_logistic <- function(X, y,
           )
           # update intercept
           if (delta0 != 0) {
+            n_updates <- n_updates + 1L
             beta[1] <- beta[1] + delta0
             if (intercept_update != "after_each_exact") {
               eta <- eta + delta0
@@ -492,6 +507,7 @@ cd_engine_logistic <- function(X, y,
             acc <- 0
 
             for (k in seq_len(max_inner)) {
+              n_updates <- n_updates + 1L
               grad_0 <- 4 * sum(pi - y) / n # average gradient wrt β0
               if (abs(grad_0) < grad_tol) break
 
@@ -506,6 +522,7 @@ cd_engine_logistic <- function(X, y,
         )
         # update intercept
         if (delta0 != 0) {
+          n_updates <- n_updates + 1L
           beta[1] <- beta[1] + delta0
           if (intercept_update != "after_sweep_exact") {
             eta <- eta + delta0
@@ -559,6 +576,9 @@ cd_engine_logistic <- function(X, y,
         if (!is.finite(change) || change == 0) next
 
         beta[j] <- beta_new
+
+        n_updates <- n_updates + 1L
+
         delta_max <- max(delta_max, abs(change))
 
         # update residual
@@ -582,6 +602,7 @@ cd_engine_logistic <- function(X, y,
               acc <- 0
 
               for (k in seq_len(max_inner)) {
+                n_updates <- n_updates + 1L
                 grad_0 <- 4 * sum(pi - y) / n
                 if (abs(grad_0) < grad_tol) break
 
@@ -596,6 +617,7 @@ cd_engine_logistic <- function(X, y,
           )
           # update intercept
           if (delta0 != 0) {
+            n_updates <- n_updates + 1L
             beta[1] <- beta[1] + delta0
             if (intercept_update != "after_each_exact") {
               eta <- eta + delta0
@@ -627,6 +649,7 @@ cd_engine_logistic <- function(X, y,
             acc <- 0
 
             for (k in seq_len(max_inner)) {
+              n_updates <- n_updates + 1L
               grad_0 <- 4 * sum(pi - y) / n
               if (abs(grad_0) < grad_tol) break
 
@@ -640,6 +663,7 @@ cd_engine_logistic <- function(X, y,
           }
         )
         if (delta0 != 0) {
+          n_updates <- n_updates + 1L
           beta[1] <- beta[1] + delta0
           delta_max <- max(delta_max, abs(delta0))
           if (intercept_update != "after_sweep_exact") {
@@ -663,7 +687,7 @@ cd_engine_logistic <- function(X, y,
   # convert beta path to matrix
   beta_path <- do.call(rbind, beta_path)
 
-  return(list(beta_path = beta_path, beta = beta))
+  return(list(beta_path = beta_path, beta = beta, n_updates = n_updates))
 }
 
 
