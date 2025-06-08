@@ -20,11 +20,9 @@ simulate_independent <- function(n, p, k,
                                  seed = 96) {
   set.seed(seed)
 
-  # 1) raw features (n x p)
   Sigma <- diag(p)
   X <- MASS::mvrnorm(n, mu = runif(p, -2, 2), Sigma = Sigma)
 
-  # 2) true beta = (intercept, slopes)
   if (is.null(beta)) {
     beta <- numeric(p + 1)
     nz <- sample.int(p, k)
@@ -32,7 +30,6 @@ simulate_independent <- function(n, p, k,
     beta[1] <- runif(1, -2, 2)
   }
 
-  # 3) error
   error_dist <- match.arg(error_dist)
   eps <- switch(error_dist,
     normal  = rnorm(n),
@@ -40,7 +37,6 @@ simulate_independent <- function(n, p, k,
     uniform = runif(n, -3, 3)
   )
 
-  # 4) linear predictor & response
   eta <- as.numeric(beta[1] + X %*% beta[-1] + eps)
   if (family[1] == "binomial") {
     prob <- 1 / (1 + exp(-eta))
@@ -59,6 +55,8 @@ simulate_independent <- function(n, p, k,
 #'
 #' @inheritParams simulate_independent
 #' @param rho Correlation coefficient (off‐diagonals uniform on [0, rho])
+#' @importFrom MASS mvrnorm
+#' @importFrom Matrix nearPD
 #' @export
 simulate_correlated <- function(n, p, k,
                                 rho = 0,
@@ -68,15 +66,12 @@ simulate_correlated <- function(n, p, k,
                                 seed = 96) {
   set.seed(seed)
 
-  # 1) build covariance
   R <- matrix(runif(p^2, 0, rho), p, p)
   diag(R) <- 1
-  Sigma <- nearPD(R, keepDiag = TRUE, ensureSymmetry = TRUE)$mat
+  Sigma <- Matrix::nearPD(R, keepDiag = TRUE, ensureSymmetry = TRUE)$mat
 
-  # 2) raw features
   X <- MASS::mvrnorm(n, mu = rep(0, p), Sigma = Sigma)
 
-  # 3) true beta
   if (is.null(beta)) {
     beta <- numeric(p + 1)
     nz <- sample.int(p, k)
@@ -84,7 +79,6 @@ simulate_correlated <- function(n, p, k,
     beta[1] <- runif(1, -2, 2)
   }
 
-  # 4) error
   error_dist <- match.arg(error_dist)
   eps <- switch(error_dist,
     normal  = rnorm(n),
@@ -92,7 +86,6 @@ simulate_correlated <- function(n, p, k,
     uniform = runif(n, -3, 3)
   )
 
-  # 5) response
   eta <- as.numeric(beta[1] + X %*% beta[-1] + eps)
   if (family[1] == "binomial") {
     prob <- 1 / (1 + exp(-eta))
@@ -114,6 +107,8 @@ simulate_correlated <- function(n, p, k,
 #' @param block_sizes Either
 #'   * a single integer B, meaning “make B equally‐sized blocks” (so p must be divisible by B), or
 #'   * a numeric vector of length B whose entries sum to p, giving each block’s size.
+#' @importFrom MASS mvrnorm
+#' @importFrom Matrix nearPD
 #' @export
 simulate_block_diagonal <- function(n, p, k,
                                     rho = 0,
@@ -145,7 +140,7 @@ simulate_block_diagonal <- function(n, p, k,
   mats <- lapply(block_sizes_vec, function(bs) matrix(rho, nrow = bs, ncol = bs))
   Rblock <- Matrix::bdiag(mats)
   diag(Rblock) <- 1
-  Sigma <- nearPD(Rblock, keepDiag = TRUE, ensureSymmetry = TRUE)$mat
+  Sigma <- Matrix::nearPD(Rblock, keepDiag = TRUE, ensureSymmetry = TRUE)$mat
 
   # raw features
   X <- MASS::mvrnorm(n, mu = runif(p, 0, rho), Sigma = Sigma)
@@ -190,6 +185,7 @@ simulate_block_diagonal <- function(n, p, k,
 #' @param sigma Covariance for the noise (p×p)
 #' @param df Degrees of freedom for t‐noise
 #' @param Psi AR coefficient array (p×p×lag)
+#' @importFrom freqdom rar
 #' @export
 simulate_ar1 <- function(n, p, k,
                          rho = 0,
@@ -207,14 +203,12 @@ simulate_ar1 <- function(n, p, k,
   if (is.null(sigma)) sigma <- diag(p)
   if (is.null(Psi)) Psi <- array(diag(p) * rho, dim = c(p, p, 1))
 
-  # 1) raw AR(1) features
   X <- freqdom::rar(
     n = n, d = p,
     Psi = Psi, burnin = burnin,
     noise = noise, sigma = sigma, df = df
   )
 
-  # 2) true beta
   if (is.null(beta)) {
     beta <- numeric(p + 1)
     nz <- sample.int(p, k)
@@ -222,7 +216,6 @@ simulate_ar1 <- function(n, p, k,
     beta[1] <- runif(1, -2, 2)
   }
 
-  # 3) error
   error_dist <- match.arg(error_dist)
   eps <- switch(error_dist,
     normal  = rnorm(n),
@@ -230,7 +223,6 @@ simulate_ar1 <- function(n, p, k,
     uniform = runif(n, -3, 3)
   )
 
-  # 4) response
   eta <- as.numeric(beta[1] + X %*% beta[-1] + eps)
   if (family[1] == "binomial") {
     prob <- 1 / (1 + exp(-eta))
