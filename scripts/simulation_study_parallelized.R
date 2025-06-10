@@ -8,7 +8,7 @@ library(pcd)
 
 # resolves futures asynchronously (in parallel) in separate R sessions running
 # in the background on the same machine
-plan(multisession, workers = parallel::detectCores() - 1L)
+plan(multisession, workers = parallel::detectCores() - 2L)
 
 # how is progress reported
 handlers("cli")
@@ -24,11 +24,11 @@ data_settings <- data.frame(
 
 other_factors <- expand.grid(
   design = c("independent", "correlated", "block", "ar1"),
-  family = c("gaussian", "binomial"),
+  family = c("gaussian"),
   k = c(5, 20),
   rho = c(0.5, 0.9),
   error_dist = c("normal", "t", "uniform"),
-  seed = 1:10,
+  seed = 2:10,
   stringsAsFactors = FALSE
 )
 
@@ -120,7 +120,7 @@ run_one <- function(sim_row, pcd_row) {
   )
 
   # convergence diagnostics
-  beta_path <- fit$path # sweep × p matrix
+  beta_path <- fit$path
   sweep_diff <- apply(abs(diff(beta_path)), 1, max)
   first_ok <- which(sweep_diff < tol)[1]
   conv_iter <- if (is.na(first_ok)) nrow(beta_path) else first_ok
@@ -215,7 +215,7 @@ for (col in intersect(num_cols, names(results_df))) {
 # ─────────────────────────────────────────────────────────────
 # Save
 # ─────────────────────────────────────────────────────────────
-write.csv(results_df, "pcd_sim_results.csv", row.names = FALSE)
+write.csv(results_df, "results/pcd_sim_results_gaussian_1.csv", row.names = FALSE)
 
 # ─────────────────────────────────────────────────────────────
 # Quick plotting, might delete later
@@ -229,7 +229,7 @@ ggplot(
   scale_y_log10() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   labs(
-    title = "Sweeps until convergence",
+    title = "n_updates until convergence",
     x = "Intercept-update strategy",
-    y = "converged sweeps (log-scale)"
+    y = "Numer of updates (log-scale)"
   )
