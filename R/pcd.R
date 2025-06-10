@@ -360,7 +360,7 @@ cd_engine <- function(
   # convert beta path to matrix
   beta_path <- do.call(rbind, beta_path)
 
-  return(list(beta_path = beta_path, beta = beta, n_updates))
+  return(list(beta_path = beta_path, beta = beta, n_updates = n_updates))
 }
 
 #' Logistic regression via coordinate descent, logistic loss
