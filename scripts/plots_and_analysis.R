@@ -76,15 +76,33 @@ n_update_summary <- function(df, strategy_col = "intercept_update") {
     )
 }
 
-conv_results_soft <- conv_summary(results_df_soft)
-conv_results_mcp <- conv_summary(results_df_mcp)
-print(conv_results_soft)
-print(conv_results_mcp)
+print(conv_summary(results_df_soft |>
+  filter(
+    family == "binomial",
+    method == "newton"
+  )))
 
-n_update_results_soft <- n_update_summary(results_df_soft)
-n_update_results_mcp <- n_update_summary(results_df_mcp)
-print(n_update_results_soft)
-print(n_update_results_mcp)
+print(conv_summary(results_df_mcp |>
+  filter(
+    family == "binomial",
+    method == "newton"
+  )))
+
+print(n_update_summary(results_df_soft |>
+  filter(
+    family == "binomial",
+    method == "newton"
+  )))
+print(n_update_summary(results_df_mcp |>
+  filter(
+    family == "binomial",
+    method == "newton"
+  )))
+print(n_update_summary(results_df_mcp |>
+  filter(
+    family == "gaussian",
+    method == "newton"
+  )))
 
 # ──────────────────────────────────────────────────────────────────────────────
 # ─────────────────────────────────── Plots ────────────────────────────────────
