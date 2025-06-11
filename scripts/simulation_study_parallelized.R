@@ -24,11 +24,11 @@ data_settings <- data.frame(
 
 other_factors <- expand.grid(
   design = c("independent", "correlated", "block", "ar1"),
-  family = c("gaussian"),
+  family = c("binomial", "gaussian"),
   k = c(5, 20),
   rho = c(0.5, 0.9),
   error_dist = c("normal", "t", "uniform"),
-  seed = 2:10,
+  seed = 1:10,
   stringsAsFactors = FALSE
 )
 
@@ -215,7 +215,7 @@ for (col in intersect(num_cols, names(results_df))) {
 # ─────────────────────────────────────────────────────────────
 # Save
 # ─────────────────────────────────────────────────────────────
-write.csv(results_df, "results/pcd_sim_results_gaussian_1.csv", row.names = FALSE)
+write.csv(results_df, "results/full_sim_results.csv", row.names = FALSE)
 
 # ─────────────────────────────────────────────────────────────
 # Quick plotting, might delete later

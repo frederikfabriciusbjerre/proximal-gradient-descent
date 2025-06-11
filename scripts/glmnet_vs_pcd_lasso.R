@@ -16,7 +16,7 @@ fit_pcd <- pcd(
   lambda           = lambda,
   prox_fun         = "soft",
   standardize      = TRUE,
-  intercept_update = "after_each_exact",
+  intercept_update = "after_sweep_newton",
   family           = "gaussian",
   tol              = tol,
   max_iter         = Inf,

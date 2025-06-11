@@ -1,6 +1,7 @@
 library(tidyverse)
 
 # ──────────────────────────────── Plot theme ──────────────────────────────────
+
 small_plot_theme <- function() {
   theme_minimal() %+replace% # replace elements we want to change
     theme(
@@ -11,18 +12,27 @@ small_plot_theme <- function() {
       plot.title = element_text(size = 8)
     )
 }
-# ──────────────────────────────────────────────────────────────────────────────
 
-# read csv
-results_df <- read.csv("results/pcd_sim_results_1_10.csv")
-results_df_mcp <- read.csv("results/pcd_sim_results_mcp_1_10.csv")
+# ──────────────────────────────── Read data ───────────────────────────────────
+
+results_df <- read.csv("results/full_sim_results.csv",
+  header = TRUE,
+  row.names = 1
+)
+results_df_mcp <- filter(results_df, prox_fun == "mcp")
+results_df_soft <- filter(results_df, prox_fun == "soft")
 metric_cols <- c("l1", "mse_full", "intercept_err..Intercept.")
 
+
+# ──────────────────────────────── Clean data ──────────────────────────────────
+
 # function that throws out scenarios that not all models
-keep_complete_scenarios <- function(df,
-                                    strategy_col = "intercept_update") {
+keep_complete_scenarios <- function(df) {
+  strategy_col <- "intercept_update"
+
   drop_cols <- c(
     strategy_col,
+    "n_updates",
     grep("(_iter$|_err|mse|l1)", names(df), value = TRUE)
   )
   scenario_cols <- setdiff(names(df), drop_cols)
@@ -37,37 +47,53 @@ keep_complete_scenarios <- function(df,
     ungroup()
 }
 
+# retain only complete scenarios
+results_df_soft <- keep_complete_scenarios(results_df_soft)
+results_df_mcp <- keep_complete_scenarios(results_df_mcp)
+
+# ──────────────────────────────── Summaries ───────────────────────────────────
+
 conv_summary <- function(df, strategy_col = "intercept_update") {
   df |>
     group_by(.data[[strategy_col]]) |>
     summarise(
-      n_runs = n(),
-      mean = mean(conv_iter, na.rm = TRUE),
-      sd = sd(conv_iter, na.rm = TRUE),
-      median = median(conv_iter, na.rm = TRUE),
-      IQR = IQR(conv_iter, na.rm = TRUE),
+      "Mean" = mean(conv_iter, na.rm = TRUE),
+      "sd" = sd(conv_iter, na.rm = TRUE),
+      "Median" = median(conv_iter, na.rm = TRUE),
+      "IQR" = IQR(conv_iter, na.rm = TRUE),
+      .groups = "drop"
+    )
+}
+n_update_summary <- function(df, strategy_col = "intercept_update") {
+  df |>
+    group_by(.data[[strategy_col]]) |>
+    summarise(
+      "Mean" = mean(n_updates, na.rm = TRUE),
+      "sd" = sd(n_updates, na.rm = TRUE),
+      "Median" = median(n_updates, na.rm = TRUE),
+      "IQR" = IQR(n_updates, na.rm = TRUE),
       .groups = "drop"
     )
 }
 
-# retain only complete scenarios
-results_df_binomial <- keep_complete_scenarios(results_df)
-results_df_mcp_binomial <- keep_complete_scenarios(results_df_mcp)
+conv_results_soft <- conv_summary(results_df_soft)
+conv_results_mcp <- conv_summary(results_df_mcp)
+print(conv_results_soft)
+print(conv_results_mcp)
 
-summary_results <- conv_summary(results_df)
-summary_results_mcp <- conv_summary(results_df_mcp)
+n_update_results_soft <- n_update_summary(results_df_soft)
+n_update_results_mcp <- n_update_summary(results_df_mcp)
+print(n_update_results_soft)
+print(n_update_results_mcp)
 
-# concatenate results
-results_df_combined <- bind_rows(
-  results_df_binomial |> mutate(prox_fun = "soft"),
-  results_df |> filter(family == "gaussian") |> mutate(prox_fun = "soft"),
-  results_df_mcp_binomial |> mutate(prox_fun = "mcp"),
-  results_df_mcp |> filter(family == "gaussian") |> mutate(prox_fun = "mcp")
-)
+# ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────── Plots ────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
 
 # ──────────────────────────── Convergence plots ───────────────────────────────
+
 p <- ggplot(
-  results_df_binomial,
+  results_df_soft |> filter(family == "binomial"),
   aes(x = intercept_update, y = conv_iter, fill = method)
 ) +
   geom_boxplot() +
@@ -85,7 +111,7 @@ ggsave(p,
 )
 
 p <- ggplot(
-  results_df |> filter(family == "gaussian"),
+  results_df_soft |> filter(family == "gaussian") |> filter(method == "gradient"),
   aes(x = intercept_update, y = conv_iter, fill = method)
 ) +
   geom_boxplot() +
@@ -104,7 +130,7 @@ ggsave(p,
 
 # facet grid over family
 p <- ggplot(
-  results_df,
+  results_df_soft,
   aes(x = intercept_update, y = conv_iter, fill = method)
 ) +
   geom_boxplot() +
@@ -122,9 +148,48 @@ ggsave(p,
   width = 6, height = 8
 )
 
-# ───────────────────────────────── L1 plots ───────────────────────────────────
+# ───────────────────────────── n updates plots ────────────────────────────────
+
 p <- ggplot(
-  results_df,
+  results_df_soft |> filter(family == "binomial"),
+  aes(x = intercept_update, y = n_updates, fill = method)
+) +
+  geom_boxplot() +
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    title = "Number of updates until convergence for binomial family",
+    x = "Intercept-update strategy",
+    y = "converged sweeps (log-scale)"
+  )
+
+ggsave(p,
+  filename = "plots/soft_binom_n_updates.pdf",
+  width = 6, height = 4
+)
+
+p <- ggplot(
+  results_df_soft |> filter(family == "gaussian") |> filter(method == "gradient"),
+  aes(x = intercept_update, y = n_updates, fill = method)
+) +
+  geom_boxplot() +
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    title = "Number of updates until convergence for binomial family",
+    x = "Intercept-update strategy",
+    y = "converged sweeps (log-scale)"
+  )
+
+ggsave(p,
+  filename = "plots/soft_gaussian_n_updates.pdf",
+  width = 6, height = 4
+)
+
+# ───────────────────────────────── L1 plots ───────────────────────────────────
+
+p <- ggplot(
+  results_df_soft,
   aes(x = intercept_update, y = l1, fill = method)
 ) +
   geom_boxplot() +
@@ -141,7 +206,7 @@ ggsave(p,
 )
 # stratified over design for binomial
 p <- ggplot(
-  results_df_binomial,
+  results_df_soft |> filter(family == "binomial"),
   aes(x = intercept_update, y = l1, fill = method)
 ) +
   geom_boxplot() +
@@ -158,7 +223,8 @@ ggsave(p,
 )
 # stratified over design for gaussian
 p <- ggplot(
-  results_df |> filter(family == "gaussian"),
+  results_df_soft |> filter(family == "gaussian") |>
+    filter(method == "gradient"),
   aes(x = intercept_update, y = l1, fill = method)
 ) +
   geom_boxplot() +
@@ -174,8 +240,9 @@ ggsave(p,
   width = 9, height = 4
 )
 # ────────────────────────────── Intercept plots ───────────────────────────────
+
 p <- ggplot(
-  results_df,
+  results_df_soft,
   aes(x = intercept_update, y = intercept_err..Intercept., fill = method)
 ) +
   geom_boxplot() +
@@ -193,7 +260,7 @@ ggsave(p,
 
 # stratified over design for binomial
 p <- ggplot(
-  results_df_binomial,
+  results_df_soft |> filter(family == "binomial"),
   aes(x = intercept_update, y = intercept_err..Intercept., fill = method)
 ) +
   geom_boxplot() +
@@ -211,11 +278,11 @@ ggsave(p,
 
 # stratified over design for gaussian
 p <- ggplot(
-  results_df |> filter(family == "gaussian"),
+  results_df_soft |> filter(family == "gaussian") |>
+    filter(method == "gradient"),
   aes(x = intercept_update, y = intercept_err..Intercept., fill = method)
 ) +
   geom_boxplot() +
-  coord_cartesian(ylim = quantile(results_df$intercept_err..Intercept., c(0, 1))) +
   facet_grid(prox_fun ~ design, scales = "free_y") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   labs(
@@ -229,19 +296,9 @@ ggsave(p,
 )
 
 # ──────────────────────────────────── MCP ─────────────────────────────────────
+
 p <- ggplot(
-  {
-    df <- results_df_combined
-
-    # threshold that marks the highest 0.1 % in the mcp–binomial subset
-    thr <- quantile(
-      df$l1[df$prox_fun == "mcp" & df$family == "binomial"],
-      0.999
-    ) # keep 99.9 %
-
-    df %>%
-      filter(!(prox_fun == "mcp" & family == "binomial" & l1 > thr)) # drop outliers
-  } |> filter(family == "binomial"),
+  results_df |> filter(family == "binomial"),
   aes(x = intercept_update, y = l1, fill = method)
 ) +
   geom_boxplot() +
@@ -260,7 +317,7 @@ ggsave(p,
 
 # convergence comparison
 ggplot(
-  results_df_combined,
+  results_df,
   aes(x = intercept_update, y = conv_iter, fill = method)
 ) +
   geom_boxplot() +
